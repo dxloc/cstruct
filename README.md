@@ -52,12 +52,12 @@ func main() {
 	fmt.Println(a) // print {456 {123 [1 2 3 4] Hello, World!}}
 
 	b := cstruct.ToBytes(&a)
-	fmt.Println(b) // [200 1 0 0 123 0 0 0 0 0 0 1 0 0 0 2 0 0 0 3 0 0 0 4 72 101 108 108 111 44 32 87 111 114 108 100 33]
+	fmt.Println(b) // [200 1 0 0 123 0 0 0 0 0 0 1 0 0 0 2 0 0 0 3 0 0 0 4 72 101 108 108 111 44 32 87 111 114 108 100 33 0]
 
 	var c MyStruct2
-	cstruct.FromBytes(b, &c) // {456 {123 [1 2 3 4] Hello, World!}}
+	cstruct.FromBytes(b, &c)
 
-	fmt.Println(c)
+	fmt.Println(c) // {456 {123 [1 2 3 4] Hello, World!}}
 }
 ```
 

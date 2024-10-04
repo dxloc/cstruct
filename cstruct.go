@@ -39,6 +39,7 @@ func toBytes(p any, isLast bool) []byte {
 
 		if f.Kind() == reflect.String {
 			ret = append(ret, []byte(f.String())...)
+			ret = append(ret, byte(0))
 			continue
 		}
 
@@ -108,8 +109,7 @@ func fromBytes(b []byte, p any, isLast bool) {
 		}
 
 		if f.Kind() == reflect.String {
-			f.SetString(string(b[offset : offset+size]))
-			offset += size
+			f.SetString(string(b[offset:]))
 			continue
 		}
 
@@ -142,6 +142,12 @@ func fromBytes(b []byte, p any, isLast bool) {
 			return
 		}
 
+		if offset+size > len(b) {
+			size = len(b) - offset
+		}
+		if size <= 0 {
+			return
+		}
 		buf := bytes.NewBuffer(b[offset : offset+size])
 
 		switch tag {
