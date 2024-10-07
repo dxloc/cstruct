@@ -3,10 +3,20 @@ package cstruct
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"reflect"
 )
 
 const tagName = "cstruct"
+
+func supportedTag(tag string) bool {
+	switch tag {
+	case "be", "le", "-":
+		return true
+	default:
+		return false
+	}
+}
 
 func supportedType(t reflect.Type) bool {
 	switch t.Kind() {
@@ -16,6 +26,15 @@ func supportedType(t reflect.Type) bool {
 		return false
 	default:
 		return true
+	}
+}
+
+func isDynamicType(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Slice, reflect.String:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -29,11 +48,10 @@ func toBytes(p any, isLast bool) []byte {
 		f := s.Field(i)
 		ft := st.Field(i)
 		tag := ft.Tag.Get(tagName)
+		isLastField := (i == s.NumField()-1) && isLast
 
-		if tag == "" || (f.Kind() == reflect.Struct && tag != "-") ||
-			((f.Kind() == reflect.Slice || f.Kind() == reflect.String) &&
-				(i != s.NumField()-1 || !isLast)) ||
-			!f.CanInterface() || !supportedType(ft.Type) {
+		if !supportedTag(tag) || !f.CanSet() || !supportedType(ft.Type) ||
+			(isDynamicType(ft.Type) && !isLastField) {
 			continue
 		}
 
@@ -44,25 +62,29 @@ func toBytes(p any, isLast bool) []byte {
 		}
 
 		if f.Kind() == reflect.Slice {
-			for j := 0; j < f.Len(); j++ {
-				b := make([]byte, 0, f.Type().Elem().Size())
-				buf := bytes.NewBuffer(b)
-
-				switch tag {
-				case "be":
-					binary.Write(buf, binary.BigEndian, f.Index(j).Interface())
-				case "le":
-					binary.Write(buf, binary.LittleEndian, f.Index(j).Interface())
-				case "-":
-					if f.Index(j).Kind() == reflect.Struct {
-						buf.Write(toBytes(f.Index(j).Addr().Interface(), true))
-					} else {
-						binary.Write(buf, binary.NativeEndian, f.Index(j).Interface())
-					}
+			if f.Type().Elem().Kind() == reflect.Struct {
+				for j := 0; j < f.Len(); j++ {
+					buf := bytes.NewBuffer(make([]byte, 0, f.Type().Elem().Size()))
+					buf.Write(toBytes(f.Index(j).Addr().Interface(), false))
+					ret = append(ret, buf.Bytes()...)
 				}
-
-				ret = append(ret, buf.Bytes()...)
+				return ret
 			}
+
+			size := int(f.Type().Elem().Size()) * f.Len()
+			buf := bytes.NewBuffer(make([]byte, 0, size))
+
+			switch tag {
+			case "be":
+				binary.Write(buf, binary.BigEndian, f.Interface())
+			case "le":
+				binary.Write(buf, binary.LittleEndian, f.Interface())
+			case "-":
+				binary.Write(buf, binary.NativeEndian, f.Interface())
+			}
+
+			ret = append(ret, buf.Bytes()...)
+
 			return ret
 		}
 
@@ -76,7 +98,7 @@ func toBytes(p any, isLast bool) []byte {
 			binary.Write(buf, binary.LittleEndian, f.Interface())
 		case "-":
 			if f.Kind() == reflect.Struct {
-				buf.Write(toBytes(f.Addr().Interface(), i == s.NumField()-1))
+				buf.Write(toBytes(f.Addr().Interface(), i == s.NumField()-1 && isLastField))
 			} else {
 				binary.Write(buf, binary.NativeEndian, f.Interface())
 			}
@@ -100,45 +122,50 @@ func fromBytes(b []byte, p any, isLast bool) {
 		ft := st.Field(i)
 		tag := ft.Tag.Get(tagName)
 		size := int(f.Type().Size())
+		if isDynamicType(ft.Type) {
+			size = 0
+		}
+		isLastField := (i == s.NumField()-1) && isLast
 
-		if tag == "" || (f.Kind() == reflect.Struct && tag != "-") ||
-			((f.Kind() == reflect.Slice || f.Kind() == reflect.String) &&
-				(i != s.NumField()-1 || !isLast)) ||
-			!f.CanSet() || !supportedType(ft.Type) {
+		if !supportedTag(tag) || !f.CanSet() || !supportedType(ft.Type) ||
+			(isDynamicType(ft.Type) && !isLastField) {
 			continue
 		}
 
 		if f.Kind() == reflect.String {
 			f.SetString(string(b[offset:]))
-			continue
+			return
 		}
 
 		if f.Kind() == reflect.Slice {
-			size = len(b) - offset
-			nelem := size / int(f.Type().Elem().Size())
-			size = int(f.Type().Elem().Size())
-
-			f.Set(reflect.MakeSlice(f.Type(), nelem, nelem))
-
-			for j := 0; j < nelem; j++ {
-				buf := bytes.NewBuffer(b[offset : offset+size])
-
-				switch tag {
-				case "be":
-					binary.Read(buf, binary.BigEndian, f.Index(j).Addr().Interface())
-				case "le":
-					binary.Read(buf, binary.LittleEndian, f.Index(j).Addr().Interface())
-				case "-":
-					if f.Index(j).Kind() == reflect.Struct {
-						fromBytes(buf.Bytes(), f.Index(j).Addr().Interface(), true)
-					} else {
-						binary.Read(buf, binary.NativeEndian, f.Index(j).Addr().Interface())
-					}
-				}
-
-				offset += size
+			left := len(b) - offset
+			if left == 0 {
+				return
 			}
 
+			if f.Type().Elem().Kind() == reflect.Struct {
+				fmt.Println("offset", offset, "len", len(b))
+				for j := 0; offset < len(b); j++ {
+					s := reflect.MakeSlice(f.Type(), 1, 1)
+					fromBytes(b[offset:], s.Index(0).Addr().Interface(), false)
+					f.Set(reflect.Append(f, s.Index(0)))
+					fmt.Println("#", j, "offset", offset, "len", len(b))
+				}
+				return
+			}
+
+			nelem := left / size
+			f.Set(reflect.MakeSlice(f.Type(), nelem, nelem))
+			buf := bytes.NewBuffer(b[offset:])
+
+			switch tag {
+			case "be":
+				binary.Read(buf, binary.BigEndian, f.Addr().Interface())
+			case "le":
+				binary.Read(buf, binary.LittleEndian, f.Addr().Interface())
+			case "-":
+				binary.Read(buf, binary.NativeEndian, f.Addr().Interface())
+			}
 			return
 		}
 
@@ -157,7 +184,7 @@ func fromBytes(b []byte, p any, isLast bool) {
 			binary.Read(buf, binary.LittleEndian, f.Addr().Interface())
 		case "-":
 			if f.Kind() == reflect.Struct {
-				fromBytes(buf.Bytes(), f.Addr().Interface(), i == s.NumField()-1)
+				fromBytes(buf.Bytes(), f.Addr().Interface(), i == s.NumField()-1 && isLastField)
 			} else {
 				binary.Read(buf, binary.NativeEndian, f.Addr().Interface())
 			}
@@ -175,7 +202,9 @@ func fromBytes(b []byte, p any, isLast bool) {
 // The "cstruct" tag can have one of the following values:
 //
 // "be": The field is serialized in big-endian byte order;
+//
 // "le": The field is serialized in little-endian byte order;
+//
 // "-": The field is serialized in the native byte order of the system.
 //
 // If the tag is not set, the field is ignored.
@@ -189,6 +218,9 @@ func fromBytes(b []byte, p any, isLast bool) {
 // or will be ignored.
 //
 // If the field type is 'struct', the tag must be "-" or will be ignored.
+//
+// Slice of structs with more than 1 element that contain strings or slices may not be
+// able to serialized correctly. Use with caution.
 //
 // The function returns nil if the input is a nil pointer or not a pointer
 // to a struct, or the struct cannot be converted to byte array.
@@ -220,10 +252,13 @@ func ToBytes[T any](t *T) []byte {
 // If the field type is bool, int, uint, map, pointer, unsafe.Pointer,
 // uintptr, interface, chan or func, the field is ignored.
 //
+// If the field type is 'struct', the tag must be "-" or will be ignored.
+//
+// Slice of structs with more than 1 element that contain strings or slices may not be
+// able to deserialized correctly. Use with caution.
+//
 // If the field type is slice or string, it must be the last field in the struct
 // or will be ignored.
-//
-// If the field type is struct, the tag must be "-" or will be ignored.
 func FromBytes[T any](b []byte, t *T) {
 	if t == nil {
 		return
