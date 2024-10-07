@@ -3,7 +3,6 @@ package cstruct
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"reflect"
 )
 
@@ -112,10 +111,16 @@ func toBytes(p any, isLast bool) []byte {
 	return ret
 }
 
-func fromBytes(b []byte, p any, isLast bool) {
+func fromBytes(b []byte, p any, isLast bool, total *int) {
 	s := reflect.ValueOf(p).Elem()
 	st := s.Type()
 	offset := 0
+
+	defer func() {
+		if total != nil {
+			*total = offset
+		}
+	}()
 
 	for i := 0; i < s.NumField(); i++ {
 		f := s.Field(i)
@@ -144,12 +149,11 @@ func fromBytes(b []byte, p any, isLast bool) {
 			}
 
 			if f.Type().Elem().Kind() == reflect.Struct {
-				fmt.Println("offset", offset, "len", len(b))
+				s := reflect.MakeSlice(f.Type(), 1, 1)
 				for j := 0; offset < len(b); j++ {
-					s := reflect.MakeSlice(f.Type(), 1, 1)
-					fromBytes(b[offset:], s.Index(0).Addr().Interface(), false)
+					fromBytes(b[offset:], s.Index(0).Addr().Interface(), false, &size)
 					f.Set(reflect.Append(f, s.Index(0)))
-					fmt.Println("#", j, "offset", offset, "len", len(b))
+					offset += size
 				}
 				return
 			}
@@ -184,7 +188,7 @@ func fromBytes(b []byte, p any, isLast bool) {
 			binary.Read(buf, binary.LittleEndian, f.Addr().Interface())
 		case "-":
 			if f.Kind() == reflect.Struct {
-				fromBytes(buf.Bytes(), f.Addr().Interface(), i == s.NumField()-1 && isLastField)
+				fromBytes(buf.Bytes(), f.Addr().Interface(), i == s.NumField()-1 && isLastField, &size)
 			} else {
 				binary.Read(buf, binary.NativeEndian, f.Addr().Interface())
 			}
@@ -219,8 +223,8 @@ func fromBytes(b []byte, p any, isLast bool) {
 //
 // If the field type is 'struct', the tag must be "-" or will be ignored.
 //
-// Slice of structs with more than 1 element that contain strings or slices may not be
-// able to serialized correctly. Use with caution.
+// If the field type is 'slice', the slice type is struct, all the 'slice' and 'string'
+// field inside the struct will be ignored.
 //
 // The function returns nil if the input is a nil pointer or not a pointer
 // to a struct, or the struct cannot be converted to byte array.
@@ -254,8 +258,8 @@ func ToBytes[T any](t *T) []byte {
 //
 // If the field type is 'struct', the tag must be "-" or will be ignored.
 //
-// Slice of structs with more than 1 element that contain strings or slices may not be
-// able to deserialized correctly. Use with caution.
+// If the field type is 'slice', the slice type is struct, all the 'slice' and 'string'
+// field inside the struct will be ignored.
 //
 // If the field type is slice or string, it must be the last field in the struct
 // or will be ignored.
@@ -268,5 +272,5 @@ func FromBytes[T any](b []byte, t *T) {
 		return
 	}
 
-	fromBytes(b, t, true)
+	fromBytes(b, t, true, nil)
 }
