@@ -8,3 +8,7 @@
 less than the actual size of the data type
 
 * Add '\0' to the end of the string when converting
+
+## cstruct v0.1.2
+
+* fix slice of struct bugs
