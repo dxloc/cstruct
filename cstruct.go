@@ -87,8 +87,26 @@ func toBytes(p any, isLast bool) []byte {
 			return ret
 		}
 
-		b := make([]byte, 0, f.Type().Size())
-		buf := bytes.NewBuffer(b)
+		if f.Kind() == reflect.Array {
+			if f.Type().Len() == 0 {
+				continue
+			} else {
+				switch f.Index(0).Kind() {
+				case reflect.String, reflect.Slice:
+					continue
+				case reflect.Struct:
+					if tag == "-" {
+						for j := 0; j < f.Len(); j++ {
+							ret = append(ret, toBytes(f.Index(j).Addr().Interface(), false)...)
+						}
+					}
+					continue
+				default:
+				}
+			}
+		}
+
+		buf := bytes.NewBuffer(make([]byte, 0, f.Type().Size()))
 
 		switch tag {
 		case "be":
@@ -127,9 +145,6 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 		ft := st.Field(i)
 		tag := ft.Tag.Get(tagName)
 		size := int(f.Type().Size())
-		if isDynamicType(ft.Type) {
-			size = 0
-		}
 		isLastField := (i == s.NumField()-1) && isLast
 
 		if !supportedTag(tag) || !f.CanSet() || !supportedType(ft.Type) ||
@@ -143,16 +158,19 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 		}
 
 		if f.Kind() == reflect.Slice {
+			slice := reflect.MakeSlice(f.Type(), 1, 1)
+			if !supportedType(slice.Index(0).Type()) || isDynamicType(slice.Index(0).Type()) {
+				return
+			}
 			left := len(b) - offset
-			if left == 0 {
+			if left <= 0 {
 				return
 			}
 
 			if f.Type().Elem().Kind() == reflect.Struct {
-				s := reflect.MakeSlice(f.Type(), 1, 1)
 				for j := 0; offset < len(b); j++ {
-					fromBytes(b[offset:], s.Index(0).Addr().Interface(), false, &size)
-					f.Set(reflect.Append(f, s.Index(0)))
+					fromBytes(b[offset:], slice.Index(0).Addr().Interface(), false, &size)
+					f.Set(reflect.Append(f, slice.Index(0)))
 					offset += size
 				}
 				return
@@ -171,6 +189,26 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 				binary.Read(buf, binary.NativeEndian, f.Addr().Interface())
 			}
 			return
+		}
+
+		if f.Kind() == reflect.Array {
+			if f.Type().Len() == 0 {
+				continue
+			} else {
+				fi := f.Index(0)
+				if !supportedType(fi.Type()) || isDynamicType(fi.Type()) {
+					continue
+				}
+				if fi.Kind() == reflect.Struct {
+					if tag == "-" {
+						for j := 0; j < f.Len(); j++ {
+							fromBytes(b[offset:], f.Index(j).Addr().Interface(), false, &size)
+							offset += size
+						}
+					}
+					continue
+				}
+			}
 		}
 
 		if offset+size > len(b) {
@@ -219,7 +257,7 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 // 'uintptr', 'interface', 'chan' or 'func', the field is ignored.
 //
 // If the field type is 'slice' or 'string', it must be the last field in the struct
-// or will be ignored.
+// and must not belong to another struct or array, or will be ignored.
 //
 // If the field type is 'struct', the tag must be "-" or will be ignored.
 //
@@ -255,6 +293,9 @@ func ToBytes[T any](t *T) []byte {
 //
 // If the field type is bool, int, uint, map, pointer, unsafe.Pointer,
 // uintptr, interface, chan or func, the field is ignored.
+//
+// If the field type is 'slice' or 'string', it must be the last field in the struct
+// and must not belong to another struct or array, or will be ignored.
 //
 // If the field type is 'struct', the tag must be "-" or will be ignored.
 //
