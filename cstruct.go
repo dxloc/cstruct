@@ -176,6 +176,7 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 				return
 			}
 
+			size = int(slice.Index(0).Type().Size())
 			nelem := left / size
 			f.Set(reflect.MakeSlice(f.Type(), nelem, nelem))
 			buf := bytes.NewBuffer(b[offset:])

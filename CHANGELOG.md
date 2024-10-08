@@ -16,3 +16,7 @@ less than the actual size of the data type
 ## cstruct v0.1.3
 
 * fix array bugs
+
+## cstruct v0.1.4
+
+* fix slice type size
