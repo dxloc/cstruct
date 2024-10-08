@@ -12,3 +12,7 @@ less than the actual size of the data type
 ## cstruct v0.1.2
 
 * fix slice of struct bugs
+
+## cstruct v0.1.3
+
+* fix array bugs
