@@ -167,6 +167,11 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 				return
 			}
 
+			if f.Type().Elem().Kind() == reflect.Uint8 {
+				f.SetBytes(b[offset:])
+				return
+			}
+
 			if f.Type().Elem().Kind() == reflect.Struct {
 				for j := 0; offset < len(b); j++ {
 					fromBytes(b[offset:], slice.Index(0).Addr().Interface(), false, &size)

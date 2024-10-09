@@ -20,3 +20,7 @@ less than the actual size of the data type
 ## cstruct v0.1.4
 
 * fix slice type size
+
+## cstruct v0.1.5
+
+* Optimize deserializing []byte
