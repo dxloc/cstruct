@@ -61,6 +61,11 @@ func toBytes(p any, isLast bool) []byte {
 		}
 
 		if f.Kind() == reflect.Slice {
+			if f.Type().Elem().Kind() == reflect.Uint8 {
+				ret = append(ret, f.Bytes()...)
+				return ret
+			}
+
 			if f.Type().Elem().Kind() == reflect.Struct {
 				for j := 0; j < f.Len(); j++ {
 					buf := bytes.NewBuffer(make([]byte, 0, f.Type().Elem().Size()))
@@ -93,6 +98,9 @@ func toBytes(p any, isLast bool) []byte {
 			} else {
 				switch f.Index(0).Kind() {
 				case reflect.String, reflect.Slice:
+					continue
+				case reflect.Uint8:
+					ret = append(ret, f.Bytes()...)
 					continue
 				case reflect.Struct:
 					if tag == "-" {
@@ -203,6 +211,10 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 			} else {
 				fi := f.Index(0)
 				if !supportedType(fi.Type()) || isDynamicType(fi.Type()) {
+					continue
+				}
+				if fi.Kind() == reflect.Uint8 {
+					f.SetBytes(b[offset:f.Type().Len()])
 					continue
 				}
 				if fi.Kind() == reflect.Struct {

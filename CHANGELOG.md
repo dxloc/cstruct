@@ -24,3 +24,7 @@ less than the actual size of the data type
 ## cstruct v0.1.5
 
 * Optimize deserializing []byte
+
+## cstruct v0.1.6
+
+* Optimize []byte SER/DES
