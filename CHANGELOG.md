@@ -28,3 +28,7 @@ less than the actual size of the data type
 ## cstruct v0.1.6
 
 * Optimize []byte SER/DES
+
+## cstruct v0.1.7
+
+* Fix bytes array bugs
