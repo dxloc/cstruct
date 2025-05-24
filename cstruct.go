@@ -214,8 +214,8 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 					continue
 				}
 				if fi.Kind() == reflect.Uint8 {
-					// f.SetBytes(b[offset:f.Type().Len()])
 					reflect.Copy(f, reflect.ValueOf(b[offset:]))
+					offset += f.Type().Len()
 					continue
 				}
 				if fi.Kind() == reflect.Struct {

@@ -10,15 +10,15 @@ func init() {}
 
 func main() {
 	type MyStruct struct {
-		Id      uint32 `cstruct:"be"`
-		Action  int32  `cstruct:"be"`
-		Content []byte `cstruct:"-"`
+		A [4]byte `cstruct:"le"`
+		B [4]byte `cstruct:"le"`
+		C uint32  `cstruct:"le"`
 	}
 
 	a := MyStruct{
-		Id:      123,
-		Action:  456,
-		Content: []byte("Hello, World!"),
+		A: [4]byte{1, 2, 3, 4},
+		B: [4]byte{5, 6, 7, 8},
+		C: 0x12345678,
 	}
 	fmt.Println(a)
 

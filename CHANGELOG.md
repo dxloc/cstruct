@@ -32,3 +32,7 @@ less than the actual size of the data type
 ## cstruct v0.1.7
 
 * Fix bytes array bugs
+
+## cstruct v0.1.8
+
+* Fix bytes array bugs in cstruct.FromBytes() function
