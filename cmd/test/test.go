@@ -39,11 +39,11 @@ func main() {
 		}
 		fmt.Println(a) // prints {456 {123 [1 2 3 4] Hello, World!}}
 
-		b := cstruct.ToBytes(&a)
+		b := cstruct.Marshal(&a)
 		fmt.Println(b) // prints [200 1 123 0 0 0 0 1 0 2 0 3 0 4 72 101 108 108 111 44 32 87 111 114 108 100 33 0]
 
 		var c MyStruct2
-		cstruct.FromBytes(b, &c)
+		cstruct.Unmarshal(b, &c)
 		fmt.Println(c) // prints {456 {123 [1 2 3 4] Hello, World!}}
 	}
 
@@ -57,11 +57,11 @@ func main() {
 			}}
 		fmt.Println(a) // prints {123 456 [{789 {10 [1 2 3 4] Hello, World! 0}}]}
 
-		b := cstruct.ToBytes(&a)
+		b := cstruct.Marshal(&a)
 		fmt.Println(b) // prints [123 0 0 0 0 0 1 200 21 3 10 0 0 0 0 1 0 2 0 3 0 4]
 
 		var c MyStruct3
-		cstruct.FromBytes(b, &c)
+		cstruct.Unmarshal(b, &c)
 		fmt.Println(c) // prints {123 456 [{789 {10 [1 2 3 4] }}]}
 	}
 
@@ -76,11 +76,11 @@ func main() {
 			}}
 		fmt.Println(a) // prints {123 456 [{789 {10 [1 2 3 4] Hello, World! 0}} {123 {11 [1 2 3 4] Hello, World! 1}}]}
 
-		b := cstruct.ToBytes(&a)
+		b := cstruct.Marshal(&a)
 		fmt.Println(b) // prints [123 0 0 0 0 0 1 200 21 3 10 0 0 0 0 1 0 2 0 3 0 4 123 0 11 0 0 0 0 1 0 2 0 3 0 4]
 
 		var c MyStruct3
-		cstruct.FromBytes(b, &c)
+		cstruct.Unmarshal(b, &c)
 		fmt.Println(c) // {123 456 [{789 {10 [1 2 3 4] }} {123 {11 [1 2 3 4] }}]}
 	}
 
@@ -107,11 +107,11 @@ func main() {
 			Value4: 789,
 		}
 		fmt.Println(a) // prints {456 {123 456} 789}
-		b := cstruct.ToBytes(&a)
+		b := cstruct.Marshal(&a)
 		fmt.Println(b) // prints [200 1 0 0 123 0 0 0 200 1 0 0 21 3 0 0]
 
 		var c MyStruct5
-		cstruct.FromBytes(b, &c)
+		cstruct.Unmarshal(b, &c)
 		fmt.Println(c) // prints {456 {123 456} 789}
 	}
 
@@ -140,11 +140,11 @@ func main() {
 			B: 3,
 		}
 		fmt.Println(a) // prints {123 [{789 10} {123 11} {456 12} {789 13}]}
-		b := cstruct.ToBytes(&a)
+		b := cstruct.Marshal(&a)
 		fmt.Println(b) // prints [123 0 0 0 0 0 3 21 10 0 0 0 0 123 11 0 0 0 1 200 12 0 0 0 3 21 13 0]
 
 		var c MyStruct7
-		cstruct.FromBytes(b, &c)
+		cstruct.Unmarshal(b, &c)
 		fmt.Println(c) // prints {123 [{789 10} {123 11} {456 12} {789 13}]}
 	}
 }

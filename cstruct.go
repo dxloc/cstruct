@@ -37,7 +37,7 @@ func isDynamicType(t reflect.Type) bool {
 	}
 }
 
-func toBytes(p any, isLast bool) []byte {
+func marshal(p any, isLast bool) []byte {
 	var ret []byte
 
 	s := reflect.ValueOf(p).Elem()
@@ -69,7 +69,7 @@ func toBytes(p any, isLast bool) []byte {
 			if f.Type().Elem().Kind() == reflect.Struct {
 				for j := 0; j < f.Len(); j++ {
 					buf := bytes.NewBuffer(make([]byte, 0, f.Type().Elem().Size()))
-					buf.Write(toBytes(f.Index(j).Addr().Interface(), false))
+					buf.Write(marshal(f.Index(j).Addr().Interface(), false))
 					ret = append(ret, buf.Bytes()...)
 				}
 				return ret
@@ -105,7 +105,7 @@ func toBytes(p any, isLast bool) []byte {
 				case reflect.Struct:
 					if tag == "-" {
 						for j := 0; j < f.Len(); j++ {
-							ret = append(ret, toBytes(f.Index(j).Addr().Interface(), false)...)
+							ret = append(ret, marshal(f.Index(j).Addr().Interface(), false)...)
 						}
 					}
 					continue
@@ -123,7 +123,7 @@ func toBytes(p any, isLast bool) []byte {
 			binary.Write(buf, binary.LittleEndian, f.Interface())
 		case "-":
 			if f.Kind() == reflect.Struct {
-				buf.Write(toBytes(f.Addr().Interface(), i == s.NumField()-1 && isLastField))
+				buf.Write(marshal(f.Addr().Interface(), i == s.NumField()-1 && isLastField))
 			} else {
 				binary.Write(buf, binary.NativeEndian, f.Interface())
 			}
@@ -137,7 +137,7 @@ func toBytes(p any, isLast bool) []byte {
 	return ret
 }
 
-func fromBytes(b []byte, p any, isLast bool, total *int) {
+func unmarshal(b []byte, p any, isLast bool, total *int) {
 	s := reflect.ValueOf(p).Elem()
 	st := s.Type()
 	offset := 0
@@ -182,7 +182,7 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 
 			if f.Type().Elem().Kind() == reflect.Struct {
 				for j := 0; offset < len(b); j++ {
-					fromBytes(b[offset:], slice.Index(0).Addr().Interface(), false, &size)
+					unmarshal(b[offset:], slice.Index(0).Addr().Interface(), false, &size)
 					f.Set(reflect.Append(f, slice.Index(0)))
 					offset += size
 				}
@@ -221,7 +221,7 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 				if fi.Kind() == reflect.Struct {
 					if tag == "-" {
 						for j := 0; j < f.Len(); j++ {
-							fromBytes(b[offset:], f.Index(j).Addr().Interface(), false, &size)
+							unmarshal(b[offset:], f.Index(j).Addr().Interface(), false, &size)
 							offset += size
 						}
 					}
@@ -245,7 +245,7 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 			binary.Read(buf, binary.LittleEndian, f.Addr().Interface())
 		case "-":
 			if f.Kind() == reflect.Struct {
-				fromBytes(buf.Bytes(), f.Addr().Interface(), i == s.NumField()-1 && isLastField, &size)
+				unmarshal(buf.Bytes(), f.Addr().Interface(), i == s.NumField()-1 && isLastField, &size)
 			} else {
 				binary.Read(buf, binary.NativeEndian, f.Addr().Interface())
 			}
@@ -257,7 +257,7 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 	}
 }
 
-// ToBytes takes a pointer to a struct and returns a byte slice containing the
+// Marshal takes a pointer to a struct and returns a byte slice containing the
 // serialized fields of the struct, according to the "cstruct" struct tags.
 //
 // The "cstruct" tag can have one of the following values:
@@ -285,7 +285,7 @@ func fromBytes(b []byte, p any, isLast bool, total *int) {
 //
 // The function returns nil if the input is a nil pointer or not a pointer
 // to a struct, or the struct cannot be converted to byte array.
-func ToBytes[T any](t *T) []byte {
+func Marshal[T any](t *T) []byte {
 	if t == nil {
 		return nil
 	}
@@ -294,10 +294,10 @@ func ToBytes[T any](t *T) []byte {
 		return nil
 	}
 
-	return toBytes(t, true)
+	return marshal(t, true)
 }
 
-// FromBytes takes a byte slice containing serialized fields of a struct and
+// Unmarshal takes a byte slice containing serialized fields of a struct and
 // sets the fields of the struct according to the "cstruct" struct tags.
 //
 // The "cstruct" tag can have one of the following values:
@@ -323,7 +323,7 @@ func ToBytes[T any](t *T) []byte {
 //
 // If the field type is slice or string, it must be the last field in the struct
 // or will be ignored.
-func FromBytes[T any](b []byte, t *T) {
+func Unmarshal[T any](b []byte, t *T) {
 	if t == nil {
 		return
 	}
@@ -332,5 +332,5 @@ func FromBytes[T any](b []byte, t *T) {
 		return
 	}
 
-	fromBytes(b, t, true, nil)
+	unmarshal(b, t, true, nil)
 }

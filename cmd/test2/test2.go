@@ -22,10 +22,10 @@ func main() {
 	}
 	fmt.Println(a)
 
-	b := cstruct.ToBytes(&a)
+	b := cstruct.Marshal(&a)
 	fmt.Println(b)
 
 	var c MyStruct
-	cstruct.FromBytes(b, &c)
+	cstruct.Unmarshal(b, &c)
 	fmt.Println(c)
 }
