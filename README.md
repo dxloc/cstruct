@@ -17,8 +17,8 @@ and determine how to serialize and deserialize them.
 
 ## Usage
 
-To use the `cstruct` library, import it in your Go program and use the `ToBytes()`
-and `FromBytes()` functions to serialize and deserialize your structs.
+To use the `cstruct` library, import it in your Go program and use the `Marshal()`
+and `Unmarshal()` functions to serialize and deserialize your structs.
 
 ```go
 package main
@@ -57,22 +57,22 @@ func main() {
 	}
 	fmt.Println(a) // print {456 {123 [1 2 3 4] Hello, World!}}
 
-	b := cstruct.ToBytes(&a)
+	b := cstruct.Marshal(&a)
 	fmt.Println(b) // print [200 1 0 0 123 0 0 0 0 0 0 1 0 0 0 2 0 0 0 3 0 0 0 4 72 101 108 108 111 44 32 87 111 114 108 100 33 0]
 
 	var c MyStruct2
-	cstruct.FromBytes(b, &c)
+	cstruct.Unmarshal(b, &c)
 
 	fmt.Println(c) // print {456 {123 [1 2 3 4] Hello, World!}}
 
 	aa := MyStruct3{Be: 123, Le: 456, A: []int32{789, 10}}
 	fmt.Println(aa) // print {123 456 [789 10]}
 
-	bb := cstruct.ToBytes(&aa)
+	bb := cstruct.Marshal(&aa)
 	fmt.Println(bb) // print [123 0 0 0 0 0 1 200 0 0 3 21 0 0 0 10]
 
 	var cc MyStruct3
-	cstruct.FromBytes(bb, &cc)
+	cstruct.Unmarshal(bb, &cc)
 	fmt.Println(cc) // print {123 456 [789 10]}
 }
 
