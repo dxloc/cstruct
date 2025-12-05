@@ -40,3 +40,9 @@ less than the actual size of the data type
 ## cstruct v1.0.0
 
 * Rename functions to cstruct.Marshal() and cstruct.Unmarshal()
+
+## cstruct v1.1.0
+
+* Serialize and deserialize with system native endian when the tag is not set
+* Use switch case instead of if-else for type detection
+* Fix README license part

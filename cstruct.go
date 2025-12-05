@@ -8,15 +8,6 @@ import (
 
 const tagName = "cstruct"
 
-func supportedTag(tag string) bool {
-	switch tag {
-	case "be", "le", "-":
-		return true
-	default:
-		return false
-	}
-}
-
 func supportedType(t reflect.Type) bool {
 	switch t.Kind() {
 	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Uint, reflect.Map,
@@ -37,39 +28,38 @@ func isDynamicType(t reflect.Type) bool {
 	}
 }
 
-func marshal(p any, isLast bool) []byte {
+func marshal(p any, endian binary.ByteOrder, isLast bool) []byte {
 	var ret []byte
 
 	s := reflect.ValueOf(p).Elem()
 	st := s.Type()
 
-	for i := 0; i < s.NumField(); i++ {
+	for i := range s.NumField() {
 		f := s.Field(i)
 		ft := st.Field(i)
 		tag := ft.Tag.Get(tagName)
 		isLastField := (i == s.NumField()-1) && isLast
 
-		if !supportedTag(tag) || !f.CanSet() || !supportedType(ft.Type) ||
+		if !f.CanSet() || !supportedType(ft.Type) ||
 			(isDynamicType(ft.Type) && !isLastField) {
 			continue
 		}
 
-		if f.Kind() == reflect.String {
+		switch f.Kind() {
+		case reflect.String:
 			ret = append(ret, []byte(f.String())...)
 			ret = append(ret, byte(0))
 			continue
-		}
 
-		if f.Kind() == reflect.Slice {
-			if f.Type().Elem().Kind() == reflect.Uint8 {
+		case reflect.Slice:
+			switch f.Type().Elem().Kind() {
+			case reflect.Uint8:
 				ret = append(ret, f.Bytes()...)
 				return ret
-			}
-
-			if f.Type().Elem().Kind() == reflect.Struct {
+			case reflect.Struct:
 				for j := 0; j < f.Len(); j++ {
 					buf := bytes.NewBuffer(make([]byte, 0, f.Type().Elem().Size()))
-					buf.Write(marshal(f.Index(j).Addr().Interface(), false))
+					buf.Write(marshal(f.Index(j).Addr().Interface(), endian, false))
 					ret = append(ret, buf.Bytes()...)
 				}
 				return ret
@@ -80,19 +70,18 @@ func marshal(p any, isLast bool) []byte {
 
 			switch tag {
 			case "be":
-				binary.Write(buf, binary.BigEndian, f.Interface())
+				endian = binary.BigEndian
 			case "le":
-				binary.Write(buf, binary.LittleEndian, f.Interface())
+				endian = binary.LittleEndian
 			case "-":
-				binary.Write(buf, binary.NativeEndian, f.Interface())
+				endian = binary.NativeEndian
 			}
+			binary.Write(buf, endian, f.Interface())
 
 			ret = append(ret, buf.Bytes()...)
-
 			return ret
-		}
 
-		if f.Kind() == reflect.Array {
+		case reflect.Array:
 			if f.Type().Len() == 0 {
 				continue
 			} else {
@@ -103,13 +92,10 @@ func marshal(p any, isLast bool) []byte {
 					ret = append(ret, f.Bytes()...)
 					continue
 				case reflect.Struct:
-					if tag == "-" {
-						for j := 0; j < f.Len(); j++ {
-							ret = append(ret, marshal(f.Index(j).Addr().Interface(), false)...)
-						}
+					for j := range f.Len() {
+						ret = append(ret, marshal(f.Index(j).Addr().Interface(), endian, false)...)
 					}
 					continue
-				default:
 				}
 			}
 		}
@@ -118,17 +104,17 @@ func marshal(p any, isLast bool) []byte {
 
 		switch tag {
 		case "be":
-			binary.Write(buf, binary.BigEndian, f.Interface())
+			endian = binary.BigEndian
 		case "le":
-			binary.Write(buf, binary.LittleEndian, f.Interface())
+			endian = binary.LittleEndian
 		case "-":
-			if f.Kind() == reflect.Struct {
-				buf.Write(marshal(f.Addr().Interface(), i == s.NumField()-1 && isLastField))
-			} else {
-				binary.Write(buf, binary.NativeEndian, f.Interface())
-			}
-		default:
-			continue
+			endian = binary.NativeEndian
+		}
+
+		if f.Kind() == reflect.Struct {
+			buf.Write(marshal(f.Addr().Interface(), endian, i == s.NumField()-1 && isLastField))
+		} else {
+			binary.Write(buf, endian, f.Interface())
 		}
 
 		ret = append(ret, buf.Bytes()...)
@@ -137,7 +123,7 @@ func marshal(p any, isLast bool) []byte {
 	return ret
 }
 
-func unmarshal(b []byte, p any, isLast bool, total *int) {
+func unmarshal(b []byte, p any, endian binary.ByteOrder, isLast bool, total *int) {
 	s := reflect.ValueOf(p).Elem()
 	st := s.Type()
 	offset := 0
@@ -148,24 +134,24 @@ func unmarshal(b []byte, p any, isLast bool, total *int) {
 		}
 	}()
 
-	for i := 0; i < s.NumField(); i++ {
+	for i := range s.NumField() {
 		f := s.Field(i)
 		ft := st.Field(i)
 		tag := ft.Tag.Get(tagName)
 		size := int(f.Type().Size())
 		isLastField := (i == s.NumField()-1) && isLast
 
-		if !supportedTag(tag) || !f.CanSet() || !supportedType(ft.Type) ||
+		if !f.CanSet() || !supportedType(ft.Type) ||
 			(isDynamicType(ft.Type) && !isLastField) {
 			continue
 		}
 
-		if f.Kind() == reflect.String {
+		switch f.Kind() {
+		case reflect.String:
 			f.SetString(string(b[offset:]))
 			return
-		}
 
-		if f.Kind() == reflect.Slice {
+		case reflect.Slice:
 			slice := reflect.MakeSlice(f.Type(), 1, 1)
 			if !supportedType(slice.Index(0).Type()) || isDynamicType(slice.Index(0).Type()) {
 				return
@@ -175,14 +161,13 @@ func unmarshal(b []byte, p any, isLast bool, total *int) {
 				return
 			}
 
-			if f.Type().Elem().Kind() == reflect.Uint8 {
+			switch f.Type().Elem().Kind() {
+			case reflect.Uint8:
 				f.SetBytes(b[offset:])
 				return
-			}
-
-			if f.Type().Elem().Kind() == reflect.Struct {
+			case reflect.Struct:
 				for j := 0; offset < len(b); j++ {
-					unmarshal(b[offset:], slice.Index(0).Addr().Interface(), false, &size)
+					unmarshal(b[offset:], slice.Index(0).Addr().Interface(), endian, false, &size)
 					f.Set(reflect.Append(f, slice.Index(0)))
 					offset += size
 				}
@@ -196,16 +181,17 @@ func unmarshal(b []byte, p any, isLast bool, total *int) {
 
 			switch tag {
 			case "be":
-				binary.Read(buf, binary.BigEndian, f.Addr().Interface())
+				endian = binary.BigEndian
 			case "le":
-				binary.Read(buf, binary.LittleEndian, f.Addr().Interface())
+				endian = binary.LittleEndian
 			case "-":
-				binary.Read(buf, binary.NativeEndian, f.Addr().Interface())
+				endian = binary.NativeEndian
 			}
-			return
-		}
+			binary.Read(buf, endian, f.Addr().Interface())
 
-		if f.Kind() == reflect.Array {
+			return
+
+		case reflect.Array:
 			if f.Type().Len() == 0 {
 				continue
 			} else {
@@ -213,17 +199,15 @@ func unmarshal(b []byte, p any, isLast bool, total *int) {
 				if !supportedType(fi.Type()) || isDynamicType(fi.Type()) {
 					continue
 				}
-				if fi.Kind() == reflect.Uint8 {
+				switch fi.Kind() {
+				case reflect.Uint8:
 					reflect.Copy(f, reflect.ValueOf(b[offset:]))
 					offset += f.Type().Len()
 					continue
-				}
-				if fi.Kind() == reflect.Struct {
-					if tag == "-" {
-						for j := 0; j < f.Len(); j++ {
-							unmarshal(b[offset:], f.Index(j).Addr().Interface(), false, &size)
-							offset += size
-						}
+				case reflect.Struct:
+					for j := range f.Len() {
+						unmarshal(b[offset:], f.Index(j).Addr().Interface(), endian, false, &size)
+						offset += size
 					}
 					continue
 				}
@@ -240,51 +224,59 @@ func unmarshal(b []byte, p any, isLast bool, total *int) {
 
 		switch tag {
 		case "be":
-			binary.Read(buf, binary.BigEndian, f.Addr().Interface())
+			endian = binary.BigEndian
 		case "le":
-			binary.Read(buf, binary.LittleEndian, f.Addr().Interface())
+			endian = binary.LittleEndian
 		case "-":
-			if f.Kind() == reflect.Struct {
-				unmarshal(buf.Bytes(), f.Addr().Interface(), i == s.NumField()-1 && isLastField, &size)
-			} else {
-				binary.Read(buf, binary.NativeEndian, f.Addr().Interface())
-			}
-		default:
-			continue
+			endian = binary.NativeEndian
+		}
+
+		if f.Kind() == reflect.Struct {
+			unmarshal(buf.Bytes(), f.Addr().Interface(), endian, i == s.NumField()-1 && isLastField, &size)
+		} else {
+			binary.Read(buf, endian, f.Addr().Interface())
 		}
 
 		offset += size
 	}
 }
 
-// Marshal takes a pointer to a struct and returns a byte slice containing the
-// serialized fields of the struct, according to the "cstruct" struct tags.
-//
-// The "cstruct" tag can have one of the following values:
-//
-// "be": The field is serialized in big-endian byte order;
-//
-// "le": The field is serialized in little-endian byte order;
-//
-// "-": The field is serialized in the native byte order of the system.
-//
-// If the tag is not set, the field is ignored.
-//
-// If the field is not exported, it will be ignored.
-//
-// If the field type is 'bool', 'int', 'uint', 'map', 'pointer', 'unsafe.Pointer',
-// 'uintptr', 'interface', 'chan' or 'func', the field is ignored.
-//
-// If the field type is 'slice' or 'string', it must be the last field in the struct
-// and must not belong to another struct or array, or will be ignored.
-//
-// If the field type is 'struct', the tag must be "-" or will be ignored.
-//
-// If the field type is 'slice', the slice type is struct, all the 'slice' and 'string'
-// field inside the struct will be ignored.
-//
-// The function returns nil if the input is a nil pointer or not a pointer
-// to a struct, or the struct cannot be converted to byte array.
+/*
+Marshal takes a pointer to a struct and returns a byte slice containing the
+serialized fields of the struct, according to the "cstruct" struct tags.
+
+The "cstruct" tag can have one of the following values:
+
+  - "be": The field is serialized in big-endian byte order;
+
+  - "le": The field is serialized in little-endian byte order;
+
+  - "-": The field is serialized in the native byte order of the system.
+
+If the tag is not set, the field is serialized in the native byte order of the
+system.
+
+Supported fixed-size types like 'int8', 'int16', 'int32', 'int64', 'uint8',
+'uint16', 'uint32', 'uint64', 'float32', 'float64', 'complex64', 'complex128'.
+
+Embedded structs and arrays are also supported.
+
+Strings and slices are partially supported.
+
+If the field is not exported, it will be ignored.
+
+If the field type is 'bool', 'int', 'uint', 'map', 'pointer', 'unsafe.Pointer',
+'uintptr', 'interface', 'chan' or 'func', the field is ignored.
+
+If the field type is 'slice' or 'string', it must be the last field in the struct
+and must not belong to another struct or array, or will be ignored.
+
+If the field type is 'slice', the slice type is struct, all the 'slice' and 'string'
+field inside the struct will be ignored.
+
+The function returns nil if the input is a nil pointer or not a pointer
+to a struct, or the struct cannot be converted to byte array.
+*/
 func Marshal[T any](t *T) []byte {
 	if t == nil {
 		return nil
@@ -294,35 +286,45 @@ func Marshal[T any](t *T) []byte {
 		return nil
 	}
 
-	return marshal(t, true)
+	return marshal(t, binary.NativeEndian, true)
 }
 
-// Unmarshal takes a byte slice containing serialized fields of a struct and
-// sets the fields of the struct according to the "cstruct" struct tags.
-//
-// The "cstruct" tag can have one of the following values:
-//
-// "be": The field is serialized in big-endian byte order;
-// "le": The field is serialized in little-endian byte order;
-// "-": The field is serialized in the native byte order of the system.
-//
-// If the tag is not set, the field is ignored.
-//
-// If the field is not exported, it will be ignored.
-//
-// If the field type is bool, int, uint, map, pointer, unsafe.Pointer,
-// uintptr, interface, chan or func, the field is ignored.
-//
-// If the field type is 'slice' or 'string', it must be the last field in the struct
-// and must not belong to another struct or array, or will be ignored.
-//
-// If the field type is 'struct', the tag must be "-" or will be ignored.
-//
-// If the field type is 'slice', the slice type is struct, all the 'slice' and 'string'
-// field inside the struct will be ignored.
-//
-// If the field type is slice or string, it must be the last field in the struct
-// or will be ignored.
+/*
+Unmarshal takes a byte slice containing serialized fields of a struct and
+sets the fields of the struct according to the "cstruct" struct tags.
+
+The "cstruct" tag can have one of the following values:
+
+  - "be": The field is serialized in big-endian byte order;
+
+  - "le": The field is serialized in little-endian byte order;
+
+  - "-": The field is serialized in the native byte order of the system.
+
+If the tag is not set, the field is serialized in the native byte order of the
+system.
+
+Supported fixed-size types like 'int8', 'int16', 'int32', 'int64', 'uint8',
+'uint16', 'uint32', 'uint64', 'float32', 'float64', 'complex64', 'complex128'.
+
+Strings and slices are partially supported.
+
+Embedded structs and arrays are also supported.
+
+If the field is not exported, it will be ignored.
+
+If the field type is bool, int, uint, map, pointer, unsafe.Pointer,
+uintptr, interface, chan or func, the field is ignored.
+
+If the field type is 'slice' or 'string', it must be the last field in the struct
+and must not belong to another struct or array, or will be ignored.
+
+If the field type is 'slice', the slice type is struct, all the 'slice' and 'string'
+field inside the struct will be ignored.
+
+If the field type is slice or string, it must be the last field in the struct
+or will be ignored.
+*/
 func Unmarshal[T any](b []byte, t *T) {
 	if t == nil {
 		return
@@ -332,5 +334,5 @@ func Unmarshal[T any](b []byte, t *T) {
 		return
 	}
 
-	unmarshal(b, t, true, nil)
+	unmarshal(b, t, binary.NativeEndian, true, nil)
 }

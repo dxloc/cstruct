@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	test := []int{0, 0, 0, 0, 1}
+	test := []int{0, 0, 0, 0, 0, 1}
 
 	type MyStruct struct {
 		Value int32    `cstruct:"le"`
@@ -24,6 +24,36 @@ func main() {
 		Be int32       `cstruct:"le"`
 		Le int32       `cstruct:"be"`
 		A  []MyStruct2 `cstruct:"-"`
+	}
+
+	type MyStruct4 struct {
+		Value1 int32
+		Value2 int32
+	}
+
+	type MyStruct5 struct {
+		Value3 int32     `cstruct:"le"`
+		M      MyStruct4 `cstruct:"le"`
+		Value4 int32     `cstruct:"le"`
+	}
+
+	type MyStruct6 struct {
+		Be int32 `cstruct:"be"`
+		Le int16 `cstruct:"le"`
+	}
+
+	type MyStruct7 struct {
+		Value int32        `cstruct:"le"`
+		A     [4]MyStruct6 `cstruct:"-"`
+		B     string
+	}
+
+	type ArrMyStruct4 [2]MyStruct4
+
+	type MyStruct8 struct {
+		Nt0 int32
+		Nt1 int32
+		A   []ArrMyStruct4 `cstruct:"le"`
 	}
 
 	if test[0] != 0 {
@@ -87,16 +117,6 @@ func main() {
 	if test[3] != 0 {
 		// Test 4: Struct with nested struct, fixed length
 		fmt.Println("Test 4: Struct with nested struct, fixed length")
-		type MyStruct4 struct {
-			Value1 int32 `cstruct:"le"`
-			Value2 int32 `cstruct:"le"`
-		}
-
-		type MyStruct5 struct {
-			Value3 int32     `cstruct:"le"`
-			M      MyStruct4 `cstruct:"-"`
-			Value4 int32     `cstruct:"le"`
-		}
 
 		a := MyStruct5{
 			Value3: 456,
@@ -118,16 +138,6 @@ func main() {
 	if test[4] != 0 {
 		// Test 5: Struct with array of struct
 		fmt.Println("Test 5: Struct with array of string")
-		type MyStruct6 struct {
-			Be int32 `cstruct:"be"`
-			Le int16 `cstruct:"le"`
-		}
-
-		type MyStruct7 struct {
-			Value int32        `cstruct:"le"`
-			A     [4]MyStruct6 `cstruct:"-"`
-			B     byte         `cstruct:"le"`
-		}
 
 		a := MyStruct7{
 			Value: 123,
@@ -137,14 +147,53 @@ func main() {
 				{Be: 456, Le: 12},
 				{Be: 789, Le: 13},
 			},
-			B: 3,
+			B: "Hello, World!",
 		}
-		fmt.Println(a) // prints {123 [{789 10} {123 11} {456 12} {789 13}]}
+		fmt.Println(a) // prints {123 [{789 10} {123 11} {456 12} {789 13}] Hello, World!}
 		b := cstruct.Marshal(&a)
-		fmt.Println(b) // prints [123 0 0 0 0 0 3 21 10 0 0 0 0 123 11 0 0 0 1 200 12 0 0 0 3 21 13 0]
+		fmt.Println(b) // prints [123 0 0 0 0 0 3 21 10 0 0 0 0 123 11 0 0 0 1 200 12 0 0 0 3 21 13 0 72 101 108 108 111 44 32 87 111 114 108 100 33 0]
 
 		var c MyStruct7
 		cstruct.Unmarshal(b, &c)
-		fmt.Println(c) // prints {123 [{789 10} {123 11} {456 12} {789 13}]}
+		fmt.Println(c) // prints {123 [{789 10} {123 11} {456 12} {789 13}] Hello, World!}
+	}
+
+	if test[5] != 0 {
+		// Test 6: Slice of array of struct
+		fmt.Println("Test 6: Slice of array of struct")
+
+		a := MyStruct8{
+			Nt0: 15,
+			Nt1: 33,
+			A: []ArrMyStruct4{
+				[2]MyStruct4{
+					{
+						Value1: 789,
+						Value2: 10,
+					},
+					{
+						Value1: 123,
+						Value2: 11,
+					},
+				},
+				[2]MyStruct4{
+					{
+						Value1: 456,
+						Value2: 12,
+					},
+					{
+						Value1: 789,
+						Value2: 13,
+					},
+				},
+			},
+		}
+		fmt.Println(a) // prints {15 33 [[{789 10} {123 11}] [{456 12} {789 13}]]}
+		b := cstruct.Marshal(&a)
+		fmt.Println(b) // prints [15 0 0 0 33 0 0 0 21 3 0 0 10 0 0 0 123 0 0 0 11 0 0 0 200 1 0 0 12 0 0 0 21 3 0 0 13 0 0 0]
+
+		var c MyStruct8
+		cstruct.Unmarshal(b, &c)
+		fmt.Println(c) // prints {15 33 [[{789 10} {123 11}] [{456 12} {789 13}]]}
 	}
 }
