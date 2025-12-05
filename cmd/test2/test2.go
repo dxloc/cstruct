@@ -10,15 +10,11 @@ func init() {}
 
 func main() {
 	type MyStruct struct {
-		A [4]byte `cstruct:"le"`
-		B [4]byte `cstruct:"le"`
-		C uint32  `cstruct:"le"`
+		Arr []int32 `cstruct:"be"`
 	}
 
 	a := MyStruct{
-		A: [4]byte{1, 2, 3, 4},
-		B: [4]byte{5, 6, 7, 8},
-		C: 0x12345678,
+		Arr: []int32{1, 2, 3},
 	}
 	fmt.Println(a)
 

@@ -33,7 +33,7 @@ func main() {
 
 	type MyStruct5 struct {
 		Value3 int32     `cstruct:"le"`
-		M      MyStruct4 `cstruct:"le"`
+		M      MyStruct4 `cstruct:"be"`
 		Value4 int32     `cstruct:"le"`
 	}
 
@@ -53,7 +53,7 @@ func main() {
 	type MyStruct8 struct {
 		Nt0 int32
 		Nt1 int32
-		A   []ArrMyStruct4 `cstruct:"le"`
+		A   []ArrMyStruct4 `cstruct:"be"`
 	}
 
 	if test[0] != 0 {

@@ -46,3 +46,7 @@ less than the actual size of the data type
 * Serialize and deserialize with system native endian when the tag is not set
 * Use switch case instead of if-else for type detection
 * Fix README license part
+
+## cstruct v1.1.1
+
+* Fix tag parsing of slice field
