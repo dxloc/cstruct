@@ -39,14 +39,15 @@ func marshal(p any, endian binary.ByteOrder, isLast bool) []byte {
 		ft := st.Field(i)
 		tag := ft.Tag.Get(tagName)
 		isLastField := (i == s.NumField()-1) && isLast
+		edn := endian
 
 		switch tag {
 		case "be":
-			endian = binary.BigEndian
+			edn = binary.BigEndian
 		case "le":
-			endian = binary.LittleEndian
+			edn = binary.LittleEndian
 		case "-":
-			endian = binary.NativeEndian
+			edn = binary.NativeEndian
 		}
 
 		if !f.CanSet() || !supportedType(ft.Type) ||
@@ -68,7 +69,7 @@ func marshal(p any, endian binary.ByteOrder, isLast bool) []byte {
 			case reflect.Struct:
 				for j := 0; j < f.Len(); j++ {
 					buf := bytes.NewBuffer(make([]byte, 0, f.Type().Elem().Size()))
-					buf.Write(marshal(f.Index(j).Addr().Interface(), endian, false))
+					buf.Write(marshal(f.Index(j).Addr().Interface(), edn, false))
 					ret = append(ret, buf.Bytes()...)
 				}
 				return ret
@@ -76,7 +77,7 @@ func marshal(p any, endian binary.ByteOrder, isLast bool) []byte {
 
 			size := int(f.Type().Elem().Size()) * f.Len()
 			buf := bytes.NewBuffer(make([]byte, 0, size))
-			binary.Write(buf, endian, f.Interface())
+			binary.Write(buf, edn, f.Interface())
 
 			ret = append(ret, buf.Bytes()...)
 			return ret
@@ -93,7 +94,7 @@ func marshal(p any, endian binary.ByteOrder, isLast bool) []byte {
 					continue
 				case reflect.Struct:
 					for j := range f.Len() {
-						ret = append(ret, marshal(f.Index(j).Addr().Interface(), endian, false)...)
+						ret = append(ret, marshal(f.Index(j).Addr().Interface(), edn, false)...)
 					}
 					continue
 				}
@@ -103,9 +104,9 @@ func marshal(p any, endian binary.ByteOrder, isLast bool) []byte {
 		buf := bytes.NewBuffer(make([]byte, 0, f.Type().Size()))
 
 		if f.Kind() == reflect.Struct {
-			buf.Write(marshal(f.Addr().Interface(), endian, i == s.NumField()-1 && isLastField))
+			buf.Write(marshal(f.Addr().Interface(), edn, i == s.NumField()-1 && isLastField))
 		} else {
-			binary.Write(buf, endian, f.Interface())
+			binary.Write(buf, edn, f.Interface())
 		}
 
 		ret = append(ret, buf.Bytes()...)
@@ -131,14 +132,15 @@ func unmarshal(b []byte, p any, endian binary.ByteOrder, isLast bool, total *int
 		tag := ft.Tag.Get(tagName)
 		size := int(f.Type().Size())
 		isLastField := (i == s.NumField()-1) && isLast
+		edn := endian
 
 		switch tag {
 		case "be":
-			endian = binary.BigEndian
+			edn = binary.BigEndian
 		case "le":
-			endian = binary.LittleEndian
+			edn = binary.LittleEndian
 		case "-":
-			endian = binary.NativeEndian
+			edn = binary.NativeEndian
 		}
 
 		if !f.CanSet() || !supportedType(ft.Type) ||
@@ -167,7 +169,7 @@ func unmarshal(b []byte, p any, endian binary.ByteOrder, isLast bool, total *int
 				return
 			case reflect.Struct:
 				for j := 0; offset < len(b); j++ {
-					unmarshal(b[offset:], slice.Index(0).Addr().Interface(), endian, false, &size)
+					unmarshal(b[offset:], slice.Index(0).Addr().Interface(), edn, false, &size)
 					f.Set(reflect.Append(f, slice.Index(0)))
 					offset += size
 				}
@@ -178,7 +180,7 @@ func unmarshal(b []byte, p any, endian binary.ByteOrder, isLast bool, total *int
 			nelem := left / size
 			f.Set(reflect.MakeSlice(f.Type(), nelem, nelem))
 			buf := bytes.NewBuffer(b[offset:])
-			binary.Read(buf, endian, f.Addr().Interface())
+			binary.Read(buf, edn, f.Addr().Interface())
 
 			return
 
@@ -197,7 +199,7 @@ func unmarshal(b []byte, p any, endian binary.ByteOrder, isLast bool, total *int
 					continue
 				case reflect.Struct:
 					for j := range f.Len() {
-						unmarshal(b[offset:], f.Index(j).Addr().Interface(), endian, false, &size)
+						unmarshal(b[offset:], f.Index(j).Addr().Interface(), edn, false, &size)
 						offset += size
 					}
 					continue
@@ -214,9 +216,9 @@ func unmarshal(b []byte, p any, endian binary.ByteOrder, isLast bool, total *int
 		buf := bytes.NewBuffer(b[offset : offset+size])
 
 		if f.Kind() == reflect.Struct {
-			unmarshal(buf.Bytes(), f.Addr().Interface(), endian, i == s.NumField()-1 && isLastField, &size)
+			unmarshal(buf.Bytes(), f.Addr().Interface(), edn, i == s.NumField()-1 && isLastField, &size)
 		} else {
-			binary.Read(buf, endian, f.Addr().Interface())
+			binary.Read(buf, edn, f.Addr().Interface())
 		}
 
 		offset += size
@@ -233,7 +235,8 @@ The "cstruct" tag can have one of the following values:
 
   - "le": The field is serialized in little-endian byte order;
 
-  - "-": The field is serialized in the native byte order of the system.
+  - "-": The field is serialized in the native byte order of the system or follows
+    the parent struct endianess.
 
 If the tag is not set, the field is serialized in the native byte order of the
 system.
@@ -281,7 +284,8 @@ The "cstruct" tag can have one of the following values:
 
   - "le": The field is serialized in little-endian byte order;
 
-  - "-": The field is serialized in the native byte order of the system.
+  - "-": The field is serialized in the native byte order of the system or follows
+    the parent struct endianess.
 
 If the tag is not set, the field is serialized in the native byte order of the
 system.

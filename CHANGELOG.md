@@ -54,3 +54,7 @@ less than the actual size of the data type
 ## cstruct v1.1.2
 
 * Return when reaching string field. Continue is not needed because string field in the middle will be considered as dynamic type and will be ignored.
+
+## cstruct v1.1.3
+
+* Fix edianess definition of fields

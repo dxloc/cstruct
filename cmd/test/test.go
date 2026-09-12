@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	test := []int{0, 0, 0, 0, 0, 1}
+	test := []int{0, 0, 0, 0, 0, 0, 1}
 
 	type MyStruct struct {
 		Value int32    `cstruct:"le"`
@@ -54,6 +54,12 @@ func main() {
 		Nt0 int32
 		Nt1 int32
 		A   []ArrMyStruct4 `cstruct:"be"`
+	}
+
+	type MyStruct9 struct {
+		A int32
+		B int32 `cstruct:"be"`
+		C int32
 	}
 
 	if test[0] != 0 {
@@ -195,5 +201,23 @@ func main() {
 		var c MyStruct8
 		cstruct.Unmarshal(b, &c)
 		fmt.Println(c) // prints {15 33 [[{789 10} {123 11}] [{456 12} {789 13}]]}
+	}
+
+	if test[6] != 0 {
+		// Test 7: Endianess test
+		fmt.Println("Test 7: Endianess test")
+
+		a := MyStruct9{
+			A: 456,
+			B: 456,
+			C: 456,
+		}
+		fmt.Println(a) // prints {456 456 456}
+		b := cstruct.Marshal(&a)
+		fmt.Println(b) // prints [200 1 0 0 0 0 1 200 200 1 0 0]
+
+		var c MyStruct9
+		cstruct.Unmarshal(b, &c)
+		fmt.Println(c) // prints {456 456 456}
 	}
 }
