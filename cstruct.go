@@ -58,7 +58,7 @@ func marshal(p any, endian binary.ByteOrder, isLast bool) []byte {
 		case reflect.String:
 			ret = append(ret, []byte(f.String())...)
 			ret = append(ret, byte(0))
-			continue
+			return ret
 
 		case reflect.Slice:
 			switch f.Type().Elem().Kind() {
